@@ -4,20 +4,27 @@ import time
 import threading
 import requests
 import urllib.parse
+import json
+
+def load_config(path='config.json'):
+    with open(path, 'r') as f:
+        return json.load(f)
+
+config = load_config()
 
 # Twitch IRC server details
 SERVER = 'irc.chat.twitch.tv'
 PORT = 6667
 
 # Replace these with your bot's Twitch username and OAuth token (include 'oauth:' prefix)
-BOT_NICK = ''         # e.g. 'mybot'
-BOT_OAUTH = 'oauth:'  # e.g. 'oauth:abcd1234...'
+BOT_NICK = config["twitch"]["bot_username"]        # e.g. 'mybot'
+BOT_OAUTH = 'oauth:'+ config ["twitch"]["bot_oauth_token"]  # e.g. 'oauth:abcd1234...'
 
 # The channel to join (your Twitch channel, with # prefix)
-CHANNEL = ''         # e.g. '#mychannel'
+CHANNEL = '#' + config["twitch"]["channel_name"]         # e.g. '#mychannel'
 
 # TTS API settings (default values)
-TTS_SERVER = "http://localhost:42069"  # Update with your server address and port
+TTS_SERVER = f"http://{config["server"]["host"]}:{config["server"]["port"]}"  # Update with your server address and port
 DEFAULT_VOICE = 0  # 0=Adam, 1=Denisa, 2=PawelTV
 DEFAULT_STABILITY = 0.5
 DEFAULT_SIMILARITY = 0.75
@@ -167,7 +174,7 @@ def main():
                 print(f"{username}: {message}")
                 
                 # Check for !say command
-                if message.lower().startswith('!say'):
+                if message.lower().startswith(config["twitch"]["command"]):
                     result = process_say_command(username, message)
                     if result is None:
                         send_message(sock, f"@{username}, you didn't provide a message to say.")

@@ -9,6 +9,12 @@ import threading
 import importlib.util
 import sys
 import uvicorn
+import json
+
+def load_config(path='config.json'):
+    with open(path, 'r') as f:
+        return json.load(f)
+config = load_config()
 
 # Import and configure twitch-handler
 def load_twitch_handler():
@@ -42,12 +48,8 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Replace with your actual ElevenLabs API key and voice IDs
-ELEVEN_API_KEY = ""
-VOICE_IDS = [
-    "uYFJyGaibp4N2VwYQshk", # Adam
-    "OAAjJsQDvpg3sVjiLgyl", # Denisa
-    "NHv5TpkohJlOhwlTCzJk"  # PawelTV
-]
+ELEVEN_API_KEY = config["elevenlabs"]["api_key"]
+VOICE_IDS = config["elevenlabs"]["voice_ids"]
 
 # Queues
 QUEUE = []
@@ -73,7 +75,7 @@ def say(voice: int, stability: float, similarity_boost: float, msg: str, usernam
     }
     data = {
         "text": msg,
-        "model_id": "eleven_multilingual_v2",
+        "model_id": config["elevenlabs"]["model_id"],
         "language": "czech",
         "voice_settings": {
             "stability": stability,
@@ -130,4 +132,4 @@ if __name__ == "__main__":
     
     # Start the FastAPI server
     print("Starting FastAPI server...")
-    uvicorn.run(app, host="0.0.0.0", port=42069)
+    uvicorn.run(app, host=config["server"]["host"], port=config["server"]["port"])
