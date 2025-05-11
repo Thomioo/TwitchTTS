@@ -42,7 +42,7 @@ Make sure you have the following installed on your system:
 
 4. **Set up configuration**:
    - edit config.json with your own credentials twitch token and stuff you can get at https://twitchtokengenerator.com and elevenlabs api key at https://elevenlabs.io/
-     
+   ---
    ```bash
    nvim config.json
    ```
