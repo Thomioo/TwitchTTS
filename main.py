@@ -1,72 +1,133 @@
-import socket
-import re
-import time
-import threading
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 import requests
+import uuid
+import os
+import threading
+import importlib.util
+import sys
+import uvicorn
 
-# Twitch IRC server details
-SERVER = 'irc.chat.twitch.tv'
-PORT = 6667
+# Import and configure twitch-handler
+def load_twitch_handler():
+    # Get the absolute path of the current script
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # Construct the path to twitch-handler.py
+    twitch_handler_path = os.path.join(current_dir, "twitch-handler.py")
+    
+    # Load the module
+    spec = importlib.util.spec_from_file_location("twitch_handler", twitch_handler_path)
+    twitch_handler = importlib.util.module_from_spec(spec)
+    
+    # Add the module to sys.modules
+    sys.modules["twitch_handler"] = twitch_handler
+    
+    # Execute the module
+    spec.loader.exec_module(twitch_handler)
+    
+    return twitch_handler
 
-# Replace these with your bot's Twitch username and OAuth token (include 'oauth:' prefix)
-BOT_NICK = 'hlaschatu'         # e.g. 'mybot'
-BOT_OAUTH = 'oauth:afwy0f1cqdeenbfkni4l59nw24di1t'  # e.g. 'oauth:abcd1234...'
+# Function to start the Twitch bot in a separate thread
+def start_twitch_bot():
+    twitch_handler = load_twitch_handler()
+    print("Starting Twitch bot in a separate thread...")
+    twitch_handler.main()
 
-# The channel to join (your Twitch channel, with # prefix)
-CHANNEL = '#itswojtys'         # e.g. '#mychannel'
+app = FastAPI()
 
-def send_message(sock, message):
-    """
-    Send a message to the Twitch chat.
-    """
-    message_temp = f"PRIVMSG {CHANNEL} :{message}\r\n"
-    print(f"Sending message: {message_temp.strip()}")
-    sock.send(message_temp.encode('utf-8'))
-    time.sleep(1)  # Sleep to avoid Twitch rate limits
+# Static directory for HTML and audio files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-def main():
-    # Connect to Twitch IRC server
-    sock = socket.socket()
-    sock.connect((SERVER, PORT))
+# Replace with your actual ElevenLabs API key and voice IDs
+ELEVEN_API_KEY = ""
+VOICE_IDS = [
+    "uYFJyGaibp4N2VwYQshk", # Adam
+    "OAAjJsQDvpg3sVjiLgyl", # Denisa
+    "NHv5TpkohJlOhwlTCzJk"  # PawelTV
+]
 
-    # Authenticate with OAuth token and join the channel
-    sock.send(f"PASS {BOT_OAUTH}\r\n".encode('utf-8'))
-    sock.send(f"NICK {BOT_NICK}\r\n".encode('utf-8'))
-    sock.send(f"JOIN {CHANNEL}\r\n".encode('utf-8'))
+# Queues
+QUEUE = []
+HISTORY = []
+AUTOPLAY = False
 
-    print(f"Connected to {CHANNEL} as {BOT_NICK}")
+class Message(BaseModel):
+    id: str
+    msg: str
+    filepath: str
+    username: str
 
-    while True:
-        resp = sock.recv(2048).decode('utf-8')
+@app.get("/say")
+def say(voice: int, stability: float, similarity_boost: float, msg: str, username: str):
+    if voice < 0 or voice >= len(VOICE_IDS):
+        return {"error": "Invalid voice index"}
+    
+    voice_id = VOICE_IDS[voice]
+    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+    headers = {
+        "xi-api-key": ELEVEN_API_KEY,
+        "Content-Type": "application/json"
+    }
+    data = {
+        "text": msg,
+        "model_id": "eleven_multilingual_v2",
+        "language": "czech",
+        "voice_settings": {
+            "stability": stability,
+            "similarity_boost": similarity_boost
+        }
+    }
+    response = requests.post(url, json=data, headers=headers)
+    if response.status_code != 200:
+        return {"error": "TTS request failed"}
+    
+    uid = str(uuid.uuid4())
+    os.makedirs("static/audio", exist_ok=True)
+    path = f"static/audio/{uid}.mp3"
+    with open(path, "wb") as f:
+        f.write(response.content)
+    
+    message = Message(id=uid, msg=msg, filepath=path, username=username)
+    QUEUE.append(message)
+    return {"status": "queued", "id": uid}
 
-        # Twitch may send multiple messages at once, split by \r\n
-        for line in resp.split('\r\n'):
-            if not line:
-                continue
+@app.get("/", response_class=HTMLResponse)
+def index():
+    return FileResponse("static/index.html")
 
-            # Respond to PINGs to avoid disconnect
-            if 'PING' in line:
-                sock.send("PONG :tmi.twitch.tv\r\n".encode('utf-8'))
-                print("PONG sent")
-                continue
+@app.get("/queue")
+def get_queue():
+    return QUEUE
 
-            # Parse chat messages
-            # Format: :username!username@username.tmi.twitch.tv PRIVMSG #channel :message
-            match = re.match(r'^:(\w+)!\w+@\w+\.tmi\.twitch\.tv PRIVMSG #\w+ :(.+)', line)
-            if match:
-                username = match.group(1)
-                message = match.group(2).strip()
-                print(f"{username}: {message}")
+@app.get("/history")
+def get_history():
+    return HISTORY
 
-                # Check for !say command
-                if message.lower().startswith('!say'):
-                    say_text = message[4:].strip()
-                    if say_text:
-                        #send_message(sock, say_text)
-                        requests.get("http://localhost:42069/say?message=" + say_text)
-                    else:
-                        send_message(sock, f"@{username}, you didn't provide a message to say.")
+@app.post("/play/{msg_id}")
+def play(msg_id: str):
+    global QUEUE, HISTORY
+    for i, msg in enumerate(QUEUE):
+        if msg.id == msg_id:
+            HISTORY.append(msg)
+            del QUEUE[i]
+            return {"played": msg.id}
+    return {"error": "Message not found"}
 
+@app.get("/toggle_autoplay")
+def toggle_autoplay():
+    global AUTOPLAY
+    AUTOPLAY = not AUTOPLAY
+    return {"autoplay": AUTOPLAY}
+
+# Entry point for the application
 if __name__ == "__main__":
-    main()
-
+    # Start the Twitch bot in a separate thread
+    twitch_thread = threading.Thread(target=start_twitch_bot, daemon=True)
+    twitch_thread.start()
+    
+    # Start the FastAPI server
+    print("Starting FastAPI server...")
+    uvicorn.run(app, host="0.0.0.0", port=42069)

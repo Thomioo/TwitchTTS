@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TTS Queue</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      justify-content: space-between;
+      padding: 20px;
+    }
+    .column {
+      width: 48%;
+    }
+    .message {
+      background: #f2f2f2;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+      box-shadow: 1px 1px 4px rgba(0,0,0,0.1);
+    }
+    .message strong {
+      color: #6c47ff;
+    }
+    button {
+      margin-left: 5px;
+      padding: 5px 10px;
+    }
+  </style><script>
+  let autoplay = false;
+  let currentlyPlaying = false;
+
+  async function fetchQueue() {
+    const res = await fetch('/queue');
+    return await res.json();
+  }
+
+  async function fetchHistory() {
+    const res = await fetch('/history');
+    return await res.json();
+  }
+
+  async function fetchAutoplay() {
+    const res = await fetch('/toggle_autoplay'); // just to get state, we'll toggle back
+    await fetch('/toggle_autoplay'); // revert toggle
+    return res.json();
+  }
+
+  async function toggleAutoplay() {
+    const res = await fetch('/toggle_autoplay');
+    const json = await res.json();
+    autoplay = json.autoplay;
+    document.getElementById('autoplay-btn').innerText = 'Autoplay: ' + (autoplay ? 'ON' : 'OFF');
+  }
+
+async function play(id) {
+  const res = await fetch(`/play/${id}`, { method: 'POST' });
+  const json = await res.json();
+
+  const audio = new Audio(`/static/audio/${json.played}.mp3`);
+  currentlyPlaying = true;
+  audio.play();
+  audio.onended = () => {
+    currentlyPlaying = false;
+  };
+
+  await load(); // update queue/history AFTER starting playback
+}
+
+  async function autoPlayNext(queue) {
+    if (autoplay && queue.length > 0 && !currentlyPlaying) {
+      await play(queue[0].id);
+    }
+  }
+
+  async function load() {
+    const queue = await fetchQueue();
+    const history = await fetchHistory();
+
+    const queueDiv = document.getElementById('queue');
+    queueDiv.innerHTML = '';
+    queue.forEach(msg => {
+      const div = document.createElement('div');
+      div.className = 'message';
+      div.innerHTML = `<strong>${msg.username}</strong>: ${msg.msg}
+                       <button onclick="play('${msg.id}')">▶️ Play</button>`;
+      queueDiv.appendChild(div);
+    });
+
+    const histDiv = document.getElementById('history');
+    histDiv.innerHTML = '';
+    history.forEach(msg => {
+      const div = document.createElement('div');
+      div.className = 'message';
+      div.innerHTML = `<strong>${msg.username}</strong>: ${msg.msg}
+                       <audio src="/${msg.filepath}" controls></audio>`;
+      histDiv.appendChild(div);
+    });
+
+    await autoPlayNext(queue);
+  }
+
+  setInterval(load, 2000);
+  window.onload = async () => {
+    const state = await fetch('/toggle_autoplay');
+    await fetch('/toggle_autoplay'); // revert
+    autoplay = (await state.json()).autoplay;
+    document.getElementById('autoplay-btn').innerText = 'Autoplay: ' + (autoplay ? 'ON' : 'OFF');
+    load();
+  };
+</script>
+
+</head>
+<body>
+  <div class="column">
+    <h2>Available Messages</h2>
+    <div id="queue"></div>
+  </div>
+  <div class="column">
+    <h2>Played Messages</h2>
+    <div id="history"></div>
+    <button onclick="toggleAutoplay()" id="autoplay-btn">Autoplay: OFF</button>
+  </div>
+</body>
+</html>
+
