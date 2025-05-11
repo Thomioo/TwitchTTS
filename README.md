@@ -19,7 +19,7 @@ To get started with TwitchTTS, follow these steps:
 Make sure you have the following installed on your system:
 - **Python 3.8 or higher**
 - **pip** (Python package manager)
-- [Twitch Developer Account](https://dev.twitch.tv/) (to set up API credentials)
+- Twitch account for the bot
 
 ### Steps
 
@@ -41,16 +41,11 @@ Make sure you have the following installed on your system:
    ```
 
 4. **Set up configuration**:
-   - Create a `.env` file in the root directory of the project.
-   - Add the following variables:
-     ```env
-     TWITCH_CLIENT_ID=your_twitch_client_id
-     TWITCH_CLIENT_SECRET=your_twitch_client_secret
-     TWITCH_BOT_TOKEN=your_twitch_bot_token
-     TWITCH_CHANNEL=your_twitch_channel
-     ```
-   Replace `your_twitch_client_id`, `your_twitch_client_secret`, `your_twitch_bot_token`, and `your_twitch_channel` with your actual Twitch API credentials.
-
+   - edit config.json with your own credentials twitch token and stuff you can get at https://twitchtokengenerator.com and elevenlabs api key at https://elevenlabs.io/
+   ```bash
+   nvim config.json
+   ```
+   
 ---
 
 ## Usage
@@ -68,7 +63,7 @@ Once the installation is complete, you can start the application:
    
    Example:
    ```
-   !speak Hello, streamer!
+   !say voice=1 Hello There!
    ```
 
 3. **Stop the application**:
@@ -88,4 +83,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ---
 
-Let me know if you'd like to customize or expand any section of this README!
+Made by Tomesh, inspired by https://www.twitch.tv/theprimeagen
