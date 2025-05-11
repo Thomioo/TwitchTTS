@@ -177,7 +177,7 @@ def main():
                 if message.lower().startswith(config["twitch"]["command"]):
                     result = process_say_command(username, message)
                     if result is None:
-                        send_message(sock, f"@{username}, you didn't provide a message to say.")
+                        send_message(sock, f"@{username} " + config["twitch"]["info_msg"])
 
 if __name__ == "__main__":
     main()

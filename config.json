@@ -3,7 +3,8 @@
     "bot_username": "YOUR_BOT_USERNAME_HERE",
     "bot_oauth_token": "YOUR_BOT_OAUTH_TOKEN_HERE",
     "channel_name": "TARGET_CHANNEL_NAME_HERE",
-    "command": "!say"
+    "command": "!say",
+    "info_msg": "usage: !say <voice=[0 = male, 1 = female, 2 = narrator (optional)> <stability (optional)> <similarity (optional) message>"
   },
   "elevenlabs": {
     "api_key": "YOUR_ELEVENLABS_API_KEY_HERE",
@@ -15,4 +16,3 @@
     "port": 8080
   }
 }
-
